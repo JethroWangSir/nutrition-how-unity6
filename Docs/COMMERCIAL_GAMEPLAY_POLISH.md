@@ -122,6 +122,23 @@
 - 三組 Player 日誌未出現 `NullReferenceException`、`IndexOutOfRangeException`、Assertion 或 Crash。
 - LZ4HC Release Build 成功：398 MB；主執行檔為 `arm64`，App 與執行檔名稱皆為「營養 How 解」，Bundle Identifier 為 `com.jethrowangsir.nutritionhow`，`codesign --verify --deep --strict` 通過。
 
+## 第六批：游標精度與衝刺 HUD 整理
+
+實機遊玩發現滑鼠游標過大、點擊熱點與箭頭尖端不一致，而且前三個平台關卡開始時會有貓頭圖示漂浮於遊戲區。第六批依實際物件與輸入路徑分別處理：
+
+- 滑鼠箭頭與點擊手勢由 100×100 調整為 64×64，保留原始圖樣比例。
+- `Cursor.SetCursor` 改用依圖片尺寸計算的熱點，不再把圖片左上角誤當成點擊位置。
+- 虛擬手把游標預設隱藏，只有 Gamepad 控制模式中的明確搖桿輸入或新按下的確認鍵才會啟用；輕微搖桿漂移不會搶走滑鼠控制。
+- 漂浮的貓頭不是重複生成的主角，而是 `sprintIcon`／`cdImage` 衝刺冷卻指示器；`level1`、`level2`、`level3-1` 已將它固定到左上狀態 HUD。
+- 不修改角色移動速度、衝刺冷卻時間、關卡碰撞或難度。
+
+### 第六批驗證結果
+
+- Unity Editor（Metal）PlayMode：25/25 通過，0 failed，執行時間 74.81 秒；新增測試驗證游標素材尺寸、熱點、手把漂移門檻，以及三個平台關卡的衝刺 HUD 位置。
+- 視覺回歸：1024×768、1280×800、1920×1080 視窗各 23 張，共 69 張；三個平台關卡的衝刺冷卻圖示均位於左上 HUD，未再漂浮於遊戲區。
+- 三組 Player 日誌未出現 Exception、Error、Assertion 或 Crash。
+- LZ4HC Release Build 成功：398 MB；主執行檔為 `arm64`，App 與執行檔名稱皆為「營養 How 解」，Bundle Identifier 為 `com.jethrowangsir.nutritionhow`，`codesign --verify --deep --strict` 通過。
+
 ## 階段完成條件
 
 1. 核心控制、鏡頭與回饋的高優先級項目完成。

@@ -459,6 +459,85 @@ public class GameplayFlowTests
         yield return null;
     }
 
+    [UnityTest]
+    [Order(15)]
+    public IEnumerator MouseCursorIsCompactAccurateAndGamepadCursorStartsHidden()
+    {
+        yield return LoadScene(NutritionHowScenes.Start);
+        MonoBehaviour mouseCursor=RequireBehaviour("cursorController","mouse cursor controller");
+        Texture2D normalCursor=(Texture2D)GetField(mouseCursor,"cursor");
+        Texture2D clickedCursor=(Texture2D)GetField(mouseCursor,"cursorClicked");
+
+        Assert.LessOrEqual(normalCursor.width,64,"The normal cursor is still oversized.");
+        Assert.LessOrEqual(normalCursor.height,64,"The normal cursor is still oversized.");
+        Assert.LessOrEqual(clickedCursor.width,64,"The clicked cursor is still oversized.");
+        Assert.LessOrEqual(clickedCursor.height,64,"The clicked cursor is still oversized.");
+
+        Vector2 normalHotspot=(Vector2)InvokeStaticResult(
+            "cursorController","GetHotspot",normalCursor,false);
+        Vector2 clickedHotspot=(Vector2)InvokeStaticResult(
+            "cursorController","GetHotspot",clickedCursor,true);
+        Assert.That(normalHotspot.x,Is.EqualTo(Mathf.Round(normalCursor.width*0.28f)));
+        Assert.That(normalHotspot.y,Is.EqualTo(Mathf.Round(normalCursor.height*0.18f)));
+        Assert.That(clickedHotspot.x,Is.EqualTo(Mathf.Round(clickedCursor.width*0.20f)));
+        Assert.That(clickedHotspot.y,Is.EqualTo(Mathf.Round(clickedCursor.height*0.20f)));
+        Assert.AreNotEqual(Vector2.zero,normalHotspot,
+            "The cursor hotspot still incorrectly uses the texture corner.");
+
+        yield return LoadScene(NutritionHowScenes.Level1);
+        MonoBehaviour gamepadController=RequireBehaviour(
+            "gamepadCursorController","gamepad cursor controller");
+        RectTransform gamepadCursor=(RectTransform)GetField(gamepadController,"cursorTransform");
+        Assert.IsFalse(gamepadCursor.gameObject.activeSelf,
+            "The gamepad cursor appeared before any gamepad cursor input.");
+        Assert.IsTrue(Cursor.visible,"The system mouse cursor was hidden in mouse mode.");
+
+        Assert.IsFalse((bool)InvokeStaticResult(
+            "gamepadCursorController","ShouldActivateGamepadCursor",
+            "Keyboard&Mouse",Vector2.one,true),
+            "Gamepad cursor activation ignored the active control scheme.");
+        Assert.IsFalse((bool)InvokeStaticResult(
+            "gamepadCursorController","ShouldActivateGamepadCursor",
+            "Gamepad",new Vector2(0.1f,0.1f),false),
+            "Minor gamepad stick drift activated the virtual cursor.");
+        Assert.IsTrue((bool)InvokeStaticResult(
+            "gamepadCursorController","ShouldActivateGamepadCursor",
+            "Gamepad",new Vector2(0.5f,0f),false),
+            "Intentional gamepad cursor movement did not activate the virtual cursor.");
+        Assert.IsTrue((bool)InvokeStaticResult(
+            "gamepadCursorController","ShouldActivateGamepadCursor",
+            "Gamepad",Vector2.zero,true),
+            "A fresh gamepad submit press did not activate the virtual cursor.");
+
+        AssertSprintCooldownIconInHud();
+        yield return LoadScene(NutritionHowScenes.Level2);
+        AssertSprintCooldownIconInHud();
+        yield return LoadScene(NutritionHowScenes.Level3Part1);
+        AssertSprintCooldownIconInHud();
+    }
+
+    private static void AssertSprintCooldownIconInHud()
+    {
+        GameObject iconObject=GameObject.Find("sprintIcon");
+        Assert.IsNotNull(iconObject,
+            $"The sprint cooldown icon is missing in {SceneManager.GetActiveScene().name}.");
+        RectTransform icon=iconObject.GetComponent<RectTransform>();
+        Assert.IsNotNull(icon);
+        Assert.That(icon.anchoredPosition.x,Is.EqualTo(125f).Within(0.001f));
+        Assert.That(icon.anchoredPosition.y,Is.EqualTo(-70f).Within(0.001f),
+            "The cooldown icon drifted out of the upper-left HUD panel.");
+        Assert.That(icon.position.x,Is.GreaterThan(0f));
+        Assert.That(icon.position.x,Is.LessThan(Screen.width*0.35f),
+            "The cooldown icon is no longer in the left HUD region.");
+        Assert.That(icon.position.y,Is.GreaterThan(Screen.height*0.75f),
+            "The cooldown icon is floating in the gameplay area instead of the upper HUD.");
+        Assert.That(icon.position.y,Is.LessThan(Screen.height));
+
+        Transform cooldownFill=icon.Find("cdImage");
+        Assert.IsNotNull(cooldownFill,"The sprint cooldown fill overlay is missing.");
+        Assert.IsTrue(cooldownFill.gameObject.activeInHierarchy);
+    }
+
     private static void RestorePreference(string key,bool hadValue,float value)
     {
         if(hadValue)
@@ -594,6 +673,18 @@ public class GameplayFlowTests
             BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic);
         Assert.IsNotNull(method,$"{typeName}.{methodName} is missing.");
         method.Invoke(null,arguments);
+    }
+
+    private static object InvokeStaticResult(
+        string typeName,string methodName,params object[] arguments)
+    {
+        Type type=FindRuntimeType(typeName);
+        Assert.IsNotNull(type,$"Could not find runtime type {typeName}.");
+        MethodInfo method=type.GetMethod(
+            methodName,
+            BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic);
+        Assert.IsNotNull(method,$"{typeName}.{methodName} is missing.");
+        return method.Invoke(null,arguments);
     }
 
     private static object GetStaticProperty(string typeName,string propertyName)
